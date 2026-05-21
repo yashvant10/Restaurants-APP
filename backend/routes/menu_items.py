@@ -6,7 +6,7 @@ from models.menu_item import MenuItem
 from models.user import User
 from schemas.menu_item_schema import MenuItemCreate, MenuItemResponse
 from auth.dependencies import get_current_user
-from routes.restaurant_orders import get_restaurant_for_user
+from routes.restaurant_orders import get_restaurant_for_user, check_restaurant_access
 
 router = APIRouter(
     prefix="/api/menu-items",
@@ -25,10 +25,14 @@ def create_menu_item(item_data: MenuItemCreate, db: Session = Depends(get_db), c
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only restaurant owners can add menu items"
         )
-    restaurant = get_restaurant_for_user(current_user, db)
+    if not check_restaurant_access(current_user, item_data.restaurant_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to manage this restaurant"
+        )
     
     new_item = MenuItem(
-        restaurant_id=restaurant.id,
+        restaurant_id=item_data.restaurant_id,
         name=item_data.name,
         description=item_data.description,
         price=item_data.price,
@@ -54,8 +58,7 @@ def update_menu_item(item_id: int, item_data: MenuItemCreate, db: Session = Depe
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if item.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, item.restaurant_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to edit this item"
@@ -86,8 +89,7 @@ def toggle_item_availability(
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if item.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, item.restaurant_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to edit this item"
@@ -110,8 +112,7 @@ def delete_menu_item(item_id: int, db: Session = Depends(get_db), current_user: 
     if not item:
         raise HTTPException(status_code=404, detail="Menu item not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if item.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, item.restaurant_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this item"

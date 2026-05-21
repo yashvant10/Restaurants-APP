@@ -38,7 +38,7 @@ export default function Menu() {
       const stored = localStorage.getItem('velocitibites_cart');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.restaurantId === restaurantId) {
+        if (parsed.restaurantId == restaurantId) {
           return parsed.items || {};
         }
       }
@@ -55,7 +55,7 @@ export default function Menu() {
       const stored = localStorage.getItem('velocitibites_cart');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.restaurantId === restaurantId) {
+        if (parsed.restaurantId == restaurantId) {
           setCart(parsed.items || {});
           return;
         }
@@ -123,7 +123,7 @@ export default function Menu() {
       const stored = localStorage.getItem('velocitibites_cart');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.restaurantId && parsed.restaurantId !== restaurantId && Object.keys(parsed.items).length > 0) {
+        if (parsed.restaurantId && parsed.restaurantId != restaurantId && Object.keys(parsed.items).length > 0) {
           setPendingItem(item);
           setShowReplaceModal(true);
           return;

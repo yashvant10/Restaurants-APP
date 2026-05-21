@@ -46,6 +46,7 @@ export function AuthProvider({ children }) {
       // Persist session
       localStorage.setItem('velocitibites_token', jwtToken);
       localStorage.setItem('velocitibites_user', JSON.stringify(userData));
+      localStorage.removeItem('active_restaurant_id');
 
       setToken(jwtToken);
       setUser(userData);
@@ -75,6 +76,7 @@ export function AuthProvider({ children }) {
       // Persist session
       localStorage.setItem('velocitibites_token', jwtToken);
       localStorage.setItem('velocitibites_user', JSON.stringify(userData));
+      localStorage.removeItem('active_restaurant_id');
 
       setToken(jwtToken);
       setUser(userData);
@@ -97,6 +99,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('velocitibites_user');
     localStorage.removeItem('velocitibites_token');
     localStorage.removeItem('velocitibites_cart');
+    localStorage.removeItem('active_restaurant_id');
   }, []);
 
   const value = {

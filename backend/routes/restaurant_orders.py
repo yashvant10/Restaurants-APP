@@ -13,7 +13,25 @@ router = APIRouter(
 )
 
 def get_restaurant_for_user(user: User, db: Session) -> Restaurant:
-    # See if there's an existing Restaurant owned by this user
+    # 1. Fetch manageable restaurant IDs (owned + seeded 1-6)
+    managed_restaurants = db.query(Restaurant).filter(
+        (Restaurant.owner_id == user.id) | (Restaurant.owner_id == None) | (Restaurant.id <= 6)
+    ).all()
+    managed_ids = [r.id for r in managed_restaurants]
+    
+    if managed_ids:
+        # Check if there are any active customer orders (Pending, Preparing, Delivering)
+        active_order = db.query(Order).filter(
+            Order.restaurant_id.in_(managed_ids),
+            Order.status.in_(['Pending', 'Preparing', 'Delivering'])
+        ).order_by(Order.created_at.desc()).first()
+        
+        if active_order:
+            restaurant = db.query(Restaurant).filter(Restaurant.id == active_order.restaurant_id).first()
+            if restaurant:
+                return restaurant
+
+    # 2. Otherwise, fall back to their owned restaurant context
     restaurant = db.query(Restaurant).filter(Restaurant.owner_id == user.id).first()
     if not restaurant:
         # If user is the first owner or Spice Garden is unowned, let's claim it
@@ -37,14 +55,33 @@ def get_restaurant_for_user(user: User, db: Session) -> Restaurant:
             db.refresh(restaurant)
     return restaurant
 
+def check_restaurant_access(user: User, restaurant_id: int, db: Session) -> bool:
+    if user.role != 'restaurant':
+        return False
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    if not restaurant:
+        return False
+    # Allow managing seeded restaurants (1-6) or any owned restaurant
+    if restaurant.owner_id is None or restaurant.owner_id == user.id or restaurant_id <= 6:
+        return True
+    return False
+
 @router.get("/api/restaurant/me")
-def get_my_restaurant(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_my_restaurant(restaurant_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != 'restaurant':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only restaurant owners can access this endpoint."
         )
-    restaurant = get_restaurant_for_user(current_user, db)
+    if restaurant_id:
+        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        if not restaurant or not check_restaurant_access(current_user, restaurant_id, db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to manage this restaurant."
+            )
+    else:
+        restaurant = get_restaurant_for_user(current_user, db)
     return {
         "id": restaurant.id,
         "name": restaurant.name,
@@ -54,15 +91,52 @@ def get_my_restaurant(db: Session = Depends(get_db), current_user: User = Depend
         "image_url": restaurant.image_url
     }
 
+@router.get("/api/restaurant/list")
+def list_my_restaurants(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != 'restaurant':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only restaurant owners can view restaurants."
+        )
+    # Return all restaurants that the user can manage (all seeded restaurants + their own)
+    restaurants = db.query(Restaurant).filter(
+        (Restaurant.owner_id == current_user.id) | (Restaurant.owner_id == None) | (Restaurant.id <= 6)
+    ).all()
+    
+    # Deduplicate by ID
+    seen_ids = set()
+    unique_restaurants = []
+    for r in restaurants:
+        if r.id not in seen_ids:
+            seen_ids.add(r.id)
+            unique_restaurants.append(r)
+            
+    return [{
+        "id": r.id,
+        "name": r.name,
+        "cuisine": r.cuisine,
+        "rating": r.rating,
+        "delivery_time": r.delivery_time,
+        "image_url": r.image_url
+    } for r in unique_restaurants]
+
 @router.get("/api/restaurant/orders", response_model=List[RestaurantOrderResponse])
-def get_restaurant_orders(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_restaurant_orders(restaurant_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != 'restaurant':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only restaurant owners can view these orders."
         )
     
-    restaurant = get_restaurant_for_user(current_user, db)
+    if restaurant_id:
+        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        if not restaurant or not check_restaurant_access(current_user, restaurant_id, db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to manage this restaurant."
+            )
+    else:
+        restaurant = get_restaurant_for_user(current_user, db)
     
     # Fetch all orders for this restaurant sorted by newest
     orders = db.query(Order).filter(
@@ -97,8 +171,7 @@ async def accept_order(order_id: int, db: Session = Depends(get_db), current_use
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if order.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, order.restaurant_id, db):
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Preparing"  # Advance directly to Preparing state
@@ -123,8 +196,7 @@ async def reject_order(order_id: int, db: Session = Depends(get_db), current_use
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if order.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, order.restaurant_id, db):
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Rejected"
@@ -149,8 +221,7 @@ async def dispatch_order(order_id: int, db: Session = Depends(get_db), current_u
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if order.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, order.restaurant_id, db):
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Delivering"
@@ -175,8 +246,7 @@ async def complete_order(order_id: int, db: Session = Depends(get_db), current_u
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    restaurant = get_restaurant_for_user(current_user, db)
-    if order.restaurant_id != restaurant.id:
+    if not check_restaurant_access(current_user, order.restaurant_id, db):
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Delivered"
