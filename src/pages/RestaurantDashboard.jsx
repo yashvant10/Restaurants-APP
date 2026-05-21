@@ -107,7 +107,24 @@ export default function RestaurantDashboard() {
   const fetchRestaurantProfile = async (targetId = null) => {
     setIsRestaurantLoading(true);
     try {
-      const id = targetId || localStorage.getItem('active_restaurant_id');
+      let id = targetId;
+      
+      // Validate targetId
+      if (id && (isNaN(parseInt(id)) || String(id) === '[object Object]' || String(id) === 'NaN')) {
+        id = null;
+      }
+      
+      // Fallback to localStorage if no valid targetId is provided
+      if (!id) {
+        const stored = localStorage.getItem('active_restaurant_id');
+        if (stored && !isNaN(parseInt(stored)) && String(stored) !== '[object Object]' && String(stored) !== 'NaN') {
+          id = parseInt(stored);
+        } else {
+          localStorage.removeItem('active_restaurant_id');
+          id = null;
+        }
+      }
+
       const url = id ? `/api/restaurant/me?restaurant_id=${id}` : '/api/restaurant/me';
       const res = await api.get(url);
       setRestaurant(res.data);
@@ -152,7 +169,12 @@ export default function RestaurantDashboard() {
     const initData = async () => {
       await fetchRestaurantsList();
       const storedId = localStorage.getItem('active_restaurant_id');
-      const targetId = storedId ? parseInt(storedId) : null;
+      let targetId = null;
+      if (storedId && !isNaN(parseInt(storedId)) && String(storedId) !== '[object Object]' && String(storedId) !== 'NaN') {
+        targetId = parseInt(storedId);
+      } else {
+        localStorage.removeItem('active_restaurant_id');
+      }
       
       // If targetId is null (no stored ID found), fetchRestaurantProfile(null) 
       // will trigger the backend '/api/restaurant/me' route without a query parameter,
