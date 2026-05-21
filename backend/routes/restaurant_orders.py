@@ -125,7 +125,9 @@ def get_restaurant_orders(restaurant_id: Optional[int] = None, db: Session = Dep
     
     response_orders = []
     for order in orders:
-        customer = db.query(User).filter(User.id == order.user_id).first()
+        # Lookup customer by customer_id (new) or user_id (legacy fallback)
+        cid = order.customer_id or order.user_id
+        customer = db.query(User).filter(User.id == cid).first()
         customer_name = customer.full_name if customer else "VIP Customer"
         
         response_orders.append(

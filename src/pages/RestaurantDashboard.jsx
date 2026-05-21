@@ -155,7 +155,9 @@ export default function RestaurantDashboard() {
     if (!restaurant) return;
     setIsOrdersLoading(true);
     try {
-      const res = await api.get(`/api/restaurant/orders?restaurant_id=${restaurant.id}`);
+      // Let backend resolve via JWT — no restaurant_id param needed
+      // This ensures only this owner's orders are returned
+      const res = await api.get('/api/restaurant/orders');
       setPendingOrders(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to fetch orders');
@@ -164,22 +166,14 @@ export default function RestaurantDashboard() {
     }
   };
 
-  // Run initial fetch on mount
+  // Run initial fetch on mount — always resolve restaurant from JWT (ignores cached ID)
   useEffect(() => {
     const initData = async () => {
       await fetchRestaurantsList();
-      const storedId = localStorage.getItem('active_restaurant_id');
-      let targetId = null;
-      if (storedId && !isNaN(parseInt(storedId)) && String(storedId) !== '[object Object]' && String(storedId) !== 'NaN') {
-        targetId = parseInt(storedId);
-      } else {
-        localStorage.removeItem('active_restaurant_id');
-      }
-      
-      // If targetId is null (no stored ID found), fetchRestaurantProfile(null) 
-      // will trigger the backend '/api/restaurant/me' route without a query parameter,
-      // which automatically retrieves the owner's owned restaurant.
-      await fetchRestaurantProfile(targetId);
+      // Always clear cached ID and let JWT resolve the owner's restaurant
+      // This ensures Restaurant A owner never sees Restaurant B's data
+      localStorage.removeItem('active_restaurant_id');
+      await fetchRestaurantProfile(null);
     };
     initData();
   }, []);

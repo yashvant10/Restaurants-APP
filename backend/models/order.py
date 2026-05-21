@@ -24,21 +24,34 @@ class Order(Base):
     @property
     def items_json(self):
         """
-        Returns a serializable list of items from the relational order_items table.
-        Falls back to the legacy JSON column if order_items is empty (SQLite compat).
+        Returns a serializable list of items.
+        Tries relational order_items first, then falls back to legacy JSON column.
         """
-        if self.order_items:
-            result = []
-            for oi in self.order_items:
-                item_name = oi.menu_item.name if oi.menu_item else f"Item #{oi.menu_item_id}"
-                result.append({
-                    "id": oi.menu_item_id,
-                    "name": item_name,
-                    "quantity": oi.quantity,
-                    "price": float(oi.item_price),
-                })
-            return result
-        # Legacy fallback
+        try:
+            if self.order_items:
+                result = []
+                for oi in self.order_items:
+                    try:
+                        item_name = oi.menu_item.name if oi.menu_item else f"Item #{oi.menu_item_id}"
+                    except Exception:
+                        item_name = f"Item #{oi.menu_item_id}"
+                    result.append({
+                        "id": oi.menu_item_id,
+                        "name": item_name,
+                        "quantity": oi.quantity,
+                        "price": float(oi.item_price),
+                    })
+                if result:
+                    return result
+        except Exception:
+            pass
+        # Legacy fallback — JSON blob stored at order creation time
         if self.items:
-            return self.items if isinstance(self.items, list) else []
+            if isinstance(self.items, list):
+                return self.items
+            try:
+                import json
+                return json.loads(self.items)
+            except Exception:
+                pass
         return []

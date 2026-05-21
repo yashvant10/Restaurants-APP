@@ -20,9 +20,9 @@ from websocket import manager
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        # ---------------------------------------------------
-        # 1. Create main Order record
-        # ---------------------------------------------------
+        # Build items JSON snapshot for legacy fallback
+        items_snapshot = [{"id": item.id, "name": item.name, "quantity": item.quantity, "price": item.price} for item in order_data.items]
+
         new_order = Order(
             customer_id=current_user.id,
             user_id=current_user.id,           # legacy alias
@@ -30,7 +30,7 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), c
             total_amount=order_data.total_amount,
             status="Placed",
             estimated_delivery_time="25-35 Mins",
-            items=None,                         # normalized; see order_items below
+            items=items_snapshot,               # JSON fallback + relational order_items below
         )
         db.add(new_order)
         db.flush()  # get new_order.id without full commit
@@ -83,13 +83,14 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), c
         raise HTTPException(status_code=500, detail=f"Failed to place order: {str(e)}")
 
 from typing import List
+from sqlalchemy import or_
 
 @router.get("/my", response_model=List[OrderTrackerResponse])
 def get_user_orders(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Fetch past orders for the logged-in customer."""
     try:
         orders = db.query(Order).filter(
-            Order.user_id == current_user.id
+            or_(Order.user_id == current_user.id, Order.customer_id == current_user.id)
         ).order_by(Order.created_at.desc()).all()
 
         response_orders = []
