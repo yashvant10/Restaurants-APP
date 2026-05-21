@@ -13,35 +13,23 @@ router = APIRouter(
 )
 
 def get_restaurant_for_user(user: User, db: Session) -> Restaurant:
-    # 1. Fetch manageable restaurant IDs (owned + seeded 1-6)
-    managed_restaurants = db.query(Restaurant).filter(
-        (Restaurant.owner_id == user.id) | (Restaurant.owner_id == None) | (Restaurant.id <= 6)
-    ).all()
-    managed_ids = [r.id for r in managed_restaurants]
-    
-    if managed_ids:
-        # Check if there are any active customer orders (Pending, Preparing, Delivering)
-        active_order = db.query(Order).filter(
-            Order.restaurant_id.in_(managed_ids),
-            Order.status.in_(['Pending', 'Preparing', 'Delivering'])
-        ).order_by(Order.created_at.desc()).first()
-        
-        if active_order:
-            restaurant = db.query(Restaurant).filter(Restaurant.id == active_order.restaurant_id).first()
-            if restaurant:
-                return restaurant
-
-    # 2. Otherwise, fall back to their owned restaurant context
+    # 1. Fetch restaurant owned by this user
     restaurant = db.query(Restaurant).filter(Restaurant.owner_id == user.id).first()
+    
     if not restaurant:
-        # If user is the first owner or Spice Garden is unowned, let's claim it
-        restaurant = db.query(Restaurant).filter(Restaurant.id == 1).first()
-        if restaurant and restaurant.owner_id is None:
-            restaurant.owner_id = user.id
+        # 2. Check if there is any unowned seeded restaurant (ID 1-6) they can claim
+        unowned_seeded = db.query(Restaurant).filter(
+            Restaurant.id <= 6,
+            Restaurant.owner_id == None
+        ).order_by(Restaurant.id.asc()).first()
+        
+        if unowned_seeded:
+            unowned_seeded.owner_id = user.id
             db.commit()
-            db.refresh(restaurant)
+            db.refresh(unowned_seeded)
+            restaurant = unowned_seeded
         else:
-            # Create a brand new restaurant for this user
+            # 3. Otherwise, create a brand new restaurant for this user
             restaurant = Restaurant(
                 owner_id=user.id,
                 name=f"{user.full_name}'s Gourmet Kitchen",
@@ -53,6 +41,7 @@ def get_restaurant_for_user(user: User, db: Session) -> Restaurant:
             db.add(restaurant)
             db.commit()
             db.refresh(restaurant)
+            
     return restaurant
 
 def check_restaurant_access(user: User, restaurant_id: int, db: Session) -> bool:
@@ -61,10 +50,8 @@ def check_restaurant_access(user: User, restaurant_id: int, db: Session) -> bool
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
     if not restaurant:
         return False
-    # Allow managing seeded restaurants (1-6) or any owned restaurant
-    if restaurant.owner_id is None or restaurant.owner_id == user.id or restaurant_id <= 6:
-        return True
-    return False
+    # Owners can strictly only manage their own restaurant
+    return restaurant.owner_id == user.id
 
 @router.get("/api/restaurant/me")
 def get_my_restaurant(restaurant_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -98,19 +85,11 @@ def list_my_restaurants(db: Session = Depends(get_db), current_user: User = Depe
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only restaurant owners can view restaurants."
         )
-    # Return all restaurants that the user can manage (all seeded restaurants + their own)
+    # Return strictly the restaurant owned by this user
     restaurants = db.query(Restaurant).filter(
-        (Restaurant.owner_id == current_user.id) | (Restaurant.owner_id == None) | (Restaurant.id <= 6)
+        Restaurant.owner_id == current_user.id
     ).all()
     
-    # Deduplicate by ID
-    seen_ids = set()
-    unique_restaurants = []
-    for r in restaurants:
-        if r.id not in seen_ids:
-            seen_ids.add(r.id)
-            unique_restaurants.append(r)
-            
     return [{
         "id": r.id,
         "name": r.name,
@@ -118,7 +97,7 @@ def list_my_restaurants(db: Session = Depends(get_db), current_user: User = Depe
         "rating": r.rating,
         "delivery_time": r.delivery_time,
         "image_url": r.image_url
-    } for r in unique_restaurants]
+    } for r in restaurants]
 
 @router.get("/api/restaurant/orders", response_model=List[RestaurantOrderResponse])
 def get_restaurant_orders(restaurant_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
