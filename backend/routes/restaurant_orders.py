@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from models.order import Order
+from models.order_status_history import OrderStatusHistory
 from models.restaurant import Restaurant
 from models.user import User
 from schemas.order_schema import RestaurantOrderResponse
@@ -131,7 +132,7 @@ def get_restaurant_orders(restaurant_id: Optional[int] = None, db: Session = Dep
             RestaurantOrderResponse(
                 id=order.id,
                 customer_name=customer_name,
-                items=order.items,
+                items=order.items_json,
                 total_amount=order.total_amount,
                 status=order.status,
                 created_at=order.created_at
@@ -153,10 +154,10 @@ async def accept_order(order_id: int, db: Session = Depends(get_db), current_use
     if not check_restaurant_access(current_user, order.restaurant_id, db):
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
-    order.status = "Preparing"  # Advance directly to Preparing state
+    order.status = "Preparing"
+    db.add(OrderStatusHistory(order_id=order.id, status="Preparing"))
     db.commit()
     
-    # Broadcast status change to order tracker channel
     await manager.broadcast_to_channel(f"order_{order.id}", {
         "type": "status_update",
         "order_id": order.id,
@@ -179,9 +180,9 @@ async def reject_order(order_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Rejected"
+    db.add(OrderStatusHistory(order_id=order.id, status="Rejected"))
     db.commit()
     
-    # Broadcast status change to order tracker channel
     await manager.broadcast_to_channel(f"order_{order.id}", {
         "type": "status_update",
         "order_id": order.id,
@@ -204,9 +205,9 @@ async def dispatch_order(order_id: int, db: Session = Depends(get_db), current_u
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Delivering"
+    db.add(OrderStatusHistory(order_id=order.id, status="Delivering"))
     db.commit()
     
-    # Broadcast status change to order tracker channel
     await manager.broadcast_to_channel(f"order_{order.id}", {
         "type": "status_update",
         "order_id": order.id,
@@ -229,9 +230,9 @@ async def complete_order(order_id: int, db: Session = Depends(get_db), current_u
         raise HTTPException(status_code=403, detail="Not authorized to manage this order")
     
     order.status = "Delivered"
+    db.add(OrderStatusHistory(order_id=order.id, status="Delivered"))
     db.commit()
     
-    # Broadcast status change to order tracker channel
     await manager.broadcast_to_channel(f"order_{order.id}", {
         "type": "status_update",
         "order_id": order.id,

@@ -11,7 +11,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "3306")
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_DATABASE = os.getenv("DB_DATABASE", "food_delivery_app")
+DB_DATABASE = os.getenv("DB_DATABASE", "food_delivery_platform")
 
 # Support both MySQL and SQLite fallback
 # Try connecting to MySQL. If it fails or is disabled, fall back gracefully to SQLite
@@ -37,7 +37,7 @@ if USE_MYSQL:
 if USE_MYSQL:
     DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_DATABASE}"
 else:
-    DATABASE_URL = "sqlite:///./food_delivery_app.db"
+    DATABASE_URL = "sqlite:///./food_delivery_platform.db"
 
 try:
     if USE_MYSQL:
@@ -55,7 +55,7 @@ try:
         raise ValueError("MySQL disabled, using SQLite")
 except Exception as e:
     print(f"MySQL connection failed: {e}. Falling back to SQLite.")
-    DATABASE_URL = "sqlite:///./food_delivery_app.db"
+    DATABASE_URL = "sqlite:///./food_delivery_platform.db"
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,

@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base, SessionLocal
+from models.user import User
 from models.restaurant import Restaurant
 from models.menu_item import MenuItem
 from models.order import Order
-from models.user import User
+from models.order_item import OrderItem
+from models.order_status_history import OrderStatusHistory
+from models.cart_item import CartItem
+from models.review import Review
 from routes.restaurants import router as restaurants_router
 from routes.orders import router as orders_router
 from routes.menu_items import router as menu_items_router
@@ -90,42 +94,42 @@ async def lifespan(app: FastAPI):
                 logger.info("No restaurants found in database. Seeding default gourmet restaurants...")
                 seed_restaurants = [
                     Restaurant(
-                        name="Spice Garden",
+                        restaurant_name="Spice Garden",
                         cuisine="Indian • Curry • Tandoori",
                         rating=4.8,
                         delivery_time="20-30 Mins",
                         image_url="https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
                     ),
                     Restaurant(
-                        name="Pizza Palace",
+                        restaurant_name="Pizza Palace",
                         cuisine="Italian • Pizza • Pasta",
                         rating=4.6,
                         delivery_time="15-25 Mins",
                         image_url="https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
                     ),
                     Restaurant(
-                        name="Dragon Bowl",
+                        restaurant_name="Dragon Bowl",
                         cuisine="Chinese • Noodles • Dim Sum",
                         rating=4.4,
                         delivery_time="25-35 Mins",
                         image_url="https://images.unsplash.com/photo-1563245372-f21724e3856d?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
                     ),
                     Restaurant(
-                        name="Burger Hub",
+                        restaurant_name="Burger Hub",
                         cuisine="American • Burgers • Fries",
                         rating=4.7,
                         delivery_time="10-20 Mins",
                         image_url="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
                     ),
                     Restaurant(
-                        name="Tandoori Treats",
+                        restaurant_name="Tandoori Treats",
                         cuisine="Indian • Kebabs • Biryani",
                         rating=4.5,
                         delivery_time="20-30 Mins",
                         image_url="https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
                     ),
                     Restaurant(
-                        name="Sushi World",
+                        restaurant_name="Sushi World",
                         cuisine="Japanese • Sushi • Ramen",
                         rating=4.9,
                         delivery_time="15-30 Mins",

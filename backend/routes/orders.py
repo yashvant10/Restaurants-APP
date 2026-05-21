@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models.order import Order
+from models.order_item import OrderItem
+from models.order_status_history import OrderStatusHistory
+from models.menu_item import MenuItem
 from models.restaurant import Restaurant
 from models.user import User
 from schemas.order_schema import OrderCreate, OrderTrackerResponse
@@ -17,30 +20,60 @@ from websocket import manager
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        # Convert Pydantic items list to dict/JSON for SQLAlchemy
-        items_json = [item.model_dump() for item in order_data.items]
-        
+        # ---------------------------------------------------
+        # 1. Create main Order record
+        # ---------------------------------------------------
         new_order = Order(
-            user_id=current_user.id,  # Securely set from the authenticated JWT user
+            customer_id=current_user.id,
+            user_id=current_user.id,           # legacy alias
             restaurant_id=order_data.restaurant_id,
-            items=items_json,
             total_amount=order_data.total_amount,
-            status="Pending"
+            status="Placed",
+            estimated_delivery_time="25-35 Mins",
+            items=None,                         # normalized; see order_items below
         )
-        
         db.add(new_order)
+        db.flush()  # get new_order.id without full commit
+
+        # ---------------------------------------------------
+        # 2. Insert normalized OrderItem rows
+        # ---------------------------------------------------
+        for item in order_data.items:
+            # Look up the menu item to get the canonical price snapshot
+            menu_item = db.query(MenuItem).filter(MenuItem.id == item.id).first()
+            price_snapshot = menu_item.price if menu_item else item.price
+
+            order_item = OrderItem(
+                order_id=new_order.id,
+                menu_item_id=item.id,
+                quantity=item.quantity,
+                item_price=price_snapshot,
+            )
+            db.add(order_item)
+
+        # ---------------------------------------------------
+        # 3. Append initial status history entry
+        # ---------------------------------------------------
+        history_entry = OrderStatusHistory(
+            order_id=new_order.id,
+            status="Placed",
+        )
+        db.add(history_entry)
+
         db.commit()
         db.refresh(new_order)
-        
-        # Broadcast real-time order alert to restaurant channel
+
+        # ---------------------------------------------------
+        # 4. Broadcast real-time order alert to restaurant WS channel
+        # ---------------------------------------------------
         await manager.broadcast_to_channel(f"restaurant_{new_order.restaurant_id}", {
             "type": "new_order",
             "order_id": new_order.id,
             "restaurant_id": new_order.restaurant_id,
             "total_amount": new_order.total_amount,
-            "message": "A new gourmet culinary ticket has been requested!"
+            "message": "A new order ticket has arrived!"
         })
-        
+
         return {
             "message": "Order placed successfully",
             "order_id": new_order.id
@@ -55,13 +88,15 @@ from typing import List
 def get_user_orders(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Fetch past orders for the logged-in customer."""
     try:
-        orders = db.query(Order).filter(Order.user_id == current_user.id).order_by(Order.created_at.desc()).all()
+        orders = db.query(Order).filter(
+            Order.user_id == current_user.id
+        ).order_by(Order.created_at.desc()).all()
+
         response_orders = []
         for order in orders:
             restaurant = db.query(Restaurant).filter(Restaurant.id == order.restaurant_id).first()
             restaurant_name = restaurant.name if restaurant else "Gourmet Kitchen"
-            
-            # Dynamic est time
+
             status_lower = order.status.lower()
             if status_lower in ["pending", "placed"]:
                 est_time = "25-35 Mins"
@@ -73,13 +108,13 @@ def get_user_orders(db: Session = Depends(get_db), current_user: User = Depends(
                 est_time = "Arrived"
             else:
                 est_time = "Unavailable"
-                
+
             response_orders.append({
                 "id": order.id,
                 "restaurant_name": restaurant_name,
                 "status": order.status,
                 "estimated_time": est_time,
-                "items": order.items,
+                "items": order.items_json,
                 "total_amount": order.total_amount
             })
         return response_orders
@@ -91,16 +126,14 @@ def get_order_tracking(order_id: int, db: Session = Depends(get_db), current_use
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Authorized access control check:
-    # Customers can only view their own orders. Restaurants can view any order placed with them.
+
+    # Access control: customers see only their own orders
     if current_user.role == 'customer' and order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to view this order")
-        
+
     restaurant = db.query(Restaurant).filter(Restaurant.id == order.restaurant_id).first()
     restaurant_name = restaurant.name if restaurant else "Gourmet Kitchen"
-    
-    # Dynamic Estimated Delivery Time
+
     status_lower = order.status.lower()
     if status_lower in ["pending", "placed"]:
         est_time = "25-35 Mins"
@@ -112,12 +145,12 @@ def get_order_tracking(order_id: int, db: Session = Depends(get_db), current_use
         est_time = "Arrived"
     else:
         est_time = "Unavailable"
-        
+
     return {
         "id": order.id,
         "restaurant_name": restaurant_name,
         "status": order.status,
         "estimated_time": est_time,
-        "items": order.items,
+        "items": order.items_json,
         "total_amount": order.total_amount
     }
