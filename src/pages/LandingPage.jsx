@@ -301,7 +301,7 @@ export default function LandingPage() {
 
   // Handle click on View Menu / Order Now for mock restaurants
   const handleRestaurantAction = (restaurant) => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
       if (user.role === 'restaurant') {
         navigate('/restaurant-dashboard');
       } else {
@@ -328,7 +328,7 @@ export default function LandingPage() {
       </div>
 
       {/* 1. RESPONSIVE STICKY NAVBAR */}
-      <nav className={`fixed top-0 left-0 w-full z-45 transition-all duration-500 ${
+      <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${
         isScrolled 
           ? 'py-4 bg-[#FAF9F6]/80 dark:bg-[#090A0F]/80 backdrop-blur-xl border-b border-rose-500/10 dark:border-rose-500/5 shadow-[0_8px_30px_rgb(0,0,0,0.02)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]' 
           : 'py-6 bg-transparent border-b border-transparent'
@@ -369,9 +369,9 @@ export default function LandingPage() {
               </button>
 
               {/* Auth Controls */}
-              {isAuthenticated ? (
+              {isAuthenticated && user ? (
                 <div className="flex items-center space-x-3 bg-white/70 dark:bg-slate-900/40 p-1.5 pl-4 pr-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Hi, {user.fullName.split(' ')[0]}</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Hi, {(user.fullName || '').split(' ')[0] || 'Gourmet'}</span>
                   <button 
                     onClick={() => {
                       if (user.role === 'restaurant') {
@@ -436,9 +436,9 @@ export default function LandingPage() {
             <a href="#restaurants" onClick={() => setMobileMenuOpen(false)} className="font-bold text-sm uppercase tracking-widest py-2 border-b border-slate-200/20 text-slate-800 dark:text-slate-200">Restaurants</a>
             <a href="#testimonials" onClick={() => setMobileMenuOpen(false)} className="font-bold text-sm uppercase tracking-widest py-2 border-b border-slate-200/20 text-slate-800 dark:text-slate-200">Contact</a>
             
-            {isAuthenticated ? (
+            {isAuthenticated && user ? (
               <div className="flex flex-col space-y-3 pt-2">
-                <span className="font-bold text-xs text-slate-500">Hi, {user.fullName}</span>
+                <span className="font-bold text-xs text-slate-500">Hi, {user.fullName || 'Gourmet'}</span>
                 <button 
                   onClick={() => {
                     setMobileMenuOpen(false);
@@ -568,7 +568,7 @@ export default function LandingPage() {
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-12">
                 <button 
                   onClick={() => {
-                    if (isAuthenticated) {
+                    if (isAuthenticated && user) {
                       if (user.role === 'restaurant') navigate('/restaurant-dashboard');
                       else navigate('/customer-dashboard');
                     } else {

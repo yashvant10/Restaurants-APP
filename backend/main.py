@@ -41,6 +41,22 @@ async def lifespan(app: FastAPI):
                 logger.info(f"is_suspended column already exists or couldn't be added: {e}")
 
             try:
+                db_conn.execute(text("ALTER TABLE users ADD COLUMN avatar VARCHAR(255) NULL"))
+                db_conn.commit()
+                logger.info("Successfully added avatar column to users table.")
+            except Exception as e:
+                db_conn.rollback()
+                logger.info(f"avatar column already exists or couldn't be added: {e}")
+
+            try:
+                db_conn.execute(text("ALTER TABLE users ADD COLUMN addresses JSON NULL"))
+                db_conn.commit()
+                logger.info("Successfully added addresses column to users table.")
+            except Exception as e:
+                db_conn.rollback()
+                logger.info(f"addresses column already exists or couldn't be added: {e}")
+
+            try:
                 db_conn.execute(text("ALTER TABLE menu_items ADD COLUMN is_available BOOLEAN DEFAULT 1 NOT NULL"))
                 db_conn.commit()
                 logger.info("Successfully added is_available column to menu_items table.")
