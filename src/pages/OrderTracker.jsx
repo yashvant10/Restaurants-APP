@@ -442,11 +442,21 @@ export default function OrderTracker() {
               <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 {order.items && order.items.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center py-3.5 text-xs font-semibold">
-                    <div className="flex items-center space-x-2.5">
-                      <span className="font-black text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-lg text-[9px]">{item.quantity}x</span>
-                      <span className="text-slate-700 dark:text-slate-300 font-bold">{item.name}</span>
+                    <div className="flex items-center space-x-3">
+                      <img 
+                        src={item.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100"} 
+                        alt={item.name} 
+                        className="w-10 h-10 object-cover rounded-xl shadow-sm border border-slate-100 dark:border-slate-800"
+                        onError={(e) => {
+                          e.target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100";
+                        }}
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-slate-700 dark:text-slate-300 font-bold">{item.name}</span>
+                        <span className="text-[10px] text-slate-450 font-semibold">{item.quantity} x ${parseFloat(item.price).toFixed(2)}</span>
+                      </div>
                     </div>
-                    <span className="text-slate-500 dark:text-slate-400 font-extrabold">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-extrabold">${(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
