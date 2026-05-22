@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 class OrderItemSchema(BaseModel):
@@ -7,6 +7,7 @@ class OrderItemSchema(BaseModel):
     name: str
     quantity: int
     price: float
+    image_url: Optional[str] = None
 
 class OrderCreate(BaseModel):
     user_id: int

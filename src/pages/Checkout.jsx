@@ -75,7 +75,8 @@ export default function Checkout() {
           id: item.id,
           name: item.name,
           quantity: item.quantity,
-          price: item.price
+          price: item.price,
+          image_url: item.image_url || item.image || ''
         })),
         total_amount: cartTotalSum
       };

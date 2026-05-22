@@ -21,7 +21,7 @@ from websocket import manager
 async def create_order(order_data: OrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         # Build items JSON snapshot for legacy fallback
-        items_snapshot = [{"id": item.id, "name": item.name, "quantity": item.quantity, "price": item.price} for item in order_data.items]
+        items_snapshot = [{"id": item.id, "name": item.name, "quantity": item.quantity, "price": item.price, "image_url": item.image_url} for item in order_data.items]
 
         new_order = Order(
             customer_id=current_user.id,

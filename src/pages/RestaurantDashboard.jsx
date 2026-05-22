@@ -669,15 +669,32 @@ export default function RestaurantDashboard() {
                       </div>
 
                       {/* Items */}
-                      <div className="p-5 flex-1 space-y-3">
+                      <div className="p-5 flex-1 space-y-3.5">
                         <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Order Summary</div>
                         {parsedItems.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-start text-xs font-semibold border-b border-dashed border-slate-200/60 dark:border-slate-700/60 pb-2 last:border-0 last:pb-0">
-                            <span className="text-slate-700 dark:text-slate-200">
-                              <span className="font-black text-amber-500 mr-2">{item.quantity}x</span>
-                              {item.name}
+                          <div key={idx} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0 last:pb-0">
+                            <div className="flex items-center space-x-3.5">
+                              {/* Swiggy/Zomato style small rounded food image */}
+                              <img 
+                                src={item.image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100"} 
+                                alt={item.name} 
+                                className="w-12 h-12 object-cover rounded-xl shadow-sm border border-slate-100 dark:border-slate-800"
+                                onError={(e) => {
+                                  e.target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100";
+                                }}
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                  {item.name}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-semibold">
+                                  {item.quantity} x ${parseFloat(item.price).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                              ${(item.price * item.quantity).toFixed(2)}
                             </span>
-                            <span className="text-slate-500">${(item.price * item.quantity).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
